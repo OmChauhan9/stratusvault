@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StratusVault - Secure Document Locker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .file-input-label {
+            transition: all 0.2s ease-in-out;
+        }
+        .file-input-label.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .loader {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #FFF;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 flex items-center justify-center min-h-screen p-4">
+
+<div id="app-container" class="w-full max-w-5xl mx-auto">
+
+    <!-- Logged Out View -->
+    <div id="logged-out-view" class="text-center bg-white p-8 rounded-xl shadow-md hidden">
+        <svg class="mx-auto h-12 w-auto text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.33-2.33 4.5 4.5 0 01-1.41 8.775" /></svg>
+        <h1 class="mt-4 text-2xl font-bold tracking-tight text-slate-900">StratusVault</h1>
+        <p class="mt-2 text-slate-600">Your secure, personal document locker in the cloud.</p>
+        <button id="login-button" class="mt-6 inline-flex items-center gap-x-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 transition-colors">
+            <svg class="-ml-0.5 h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M15.841 8.854a.75.75 0 01.159.544V10c0 .414-.336.75-.75.75H9a.75.75 0 01-.75-.75v-.602a.75.75 0 01.159-.544l3.12-4.34a.75.75 0 011.232 0l3.12 4.34zM9 10.75h6c.414 0 .75.336.75.75v.602a.75.75 0 01-.159.544l-3.12 4.34a.75.75 0 01-1.232 0l-3.12-4.34a.75.75 0 01-.159-.544V11.5a.75.75 0 01.75-.75z"></path></svg>
+            Sign In with Google
+        </button>
+    </div>
+
+    <!-- Logged In View -->
+    <div id="logged-in-view" class="hidden w-full">
+        <header class="flex items-center justify-between pb-4 border-b border-slate-200">
+            <div>
+                <h1 class="text-xl font-bold text-slate-900">StratusVault</h1>
+                <p id="user-welcome" class="text-sm text-slate-500">Welcome!</p>
+            </div>
+            <button id="logout-button" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 transition-colors">Log Out</button>
+        </header>
+
+        <main class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Left Column: File List -->
+            <div class="lg:col-span-2">
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-lg font-semibold text-slate-900">Your Documents</h2>
+                    <div id="file-list-container" class="mt-4 flow-root">
+                        <div id="file-list-loading" class="text-center py-8"><p class="text-slate-500">Loading documents...</p></div>
+                        <div id="file-list-empty" class="text-center py-8 hidden"><svg class="mx-auto h-12 w-12 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg><h3 class="mt-2 text-sm font-medium text-slate-900">No documents</h3><p class="mt-1 text-sm text-slate-500">Get started by uploading a new file.</p></div>
+                        <table id="file-list-table" class="min-w-full divide-y divide-slate-200 hidden">
+                            <thead><tr><th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-0">File Name</th><th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Size (Original)</th><th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Date Uploaded</th><th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-0"><span class="sr-only">Download</span></th></tr></thead>
+                            <tbody id="file-list-body" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: File Upload -->
+            <div class="lg:col-span-1">
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h2 class="text-lg font-semibold text-slate-900">Upload Document</h2>
+                    <form id="upload-form" class="mt-4">
+                        <label for="file-upload" class="file-input-label block w-full relative border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500"><svg class="mx-auto h-12 w-12 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.33-2.33 4.5 4.5 0 01-1.41 8.775" /></svg><span id="file-name-display" class="mt-2 block text-sm font-semibold text-slate-900">Click to upload or drag and drop</span><span class="mt-1 block text-xs text-slate-500">Any file type, up to 25MB</span><input id="file-upload" name="file" type="file" class="sr-only"></label>
+                        <div id="progress-container" class="mt-4 hidden"><div class="w-full bg-slate-200 rounded-full h-2.5"><div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div></div></div>
+                        <button id="upload-button" type="submit" disabled class="mt-6 w-full rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors">Upload File</button>
+                    </form>
+                    <div id="status-message" class="mt-4 p-4 rounded-md hidden text-sm"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+        apiKey: "AIzaSyAFx0iNXkUTgTDyKHEOVux0qORyoA5Cii0",
+        authDomain: "stratus-vault.firebaseapp.com",
+        projectId: "stratus-vault",
+        storageBucket: "stratus-vault.firebasestorage.app",
+        messagingSenderId: "887984050545",
+        appId: "1:887984050545:web:0ef08df970581f312ba6d0",
+        measurementId: "G-FM00RLGMMC"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    // DOM Elements
+    const loggedOutView = document.getElementById('logged-out-view');
+    const loggedInView = document.getElementById('logged-in-view');
+    const loginButton = document.getElementById('login-button');
+    const logoutButton = document.getElementById('logout-button');
+    const userWelcomeDisplay = document.getElementById('user-welcome');
+    const uploadForm = document.getElementById('upload-form');
+    const fileInput = document.getElementById('file-upload');
+    const fileNameDisplay = document.getElementById('file-name-display');
+    const uploadButton = document.getElementById('upload-button');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const statusMessage = document.getElementById('status-message');
+    const fileInputLabel = document.querySelector('.file-input-label');
+    const fileListLoading = document.getElementById('file-list-loading');
+    const fileListEmpty = document.getElementById('file-list-empty');
+    const fileListTable = document.getElementById('file-list-table');
+    const fileListBody = document.getElementById('file-list-body');
+
+    let currentFile = null;
+
+    // --- AUTHENTICATION LOGIC ---
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            loggedInView.classList.remove('hidden');
+            loggedOutView.classList.add('hidden');
+            userWelcomeDisplay.textContent = `Welcome, ${user.displayName}`;
+            hideStatusMessage();
+            fetchDocuments();
+        } else {
+            loggedInView.classList.add('hidden');
+            loggedOutView.classList.remove('hidden');
+            userWelcomeDisplay.textContent = '';
+            fileListBody.innerHTML = '';
+            fileListTable.classList.add('hidden');
+        }
+    });
+
+    loginButton.addEventListener('click', () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider).catch(error => console.error("Login failed:", error));
+    });
+
+    logoutButton.addEventListener('click', () => auth.signOut());
+
+    // --- DOCUMENT LIST & DOWNLOAD LOGIC ---
+    async function fetchDocuments() {
+        fileListLoading.classList.remove('hidden');
+        fileListEmpty.classList.add('hidden');
+        fileListTable.classList.add('hidden');
+        const user = auth.currentUser;
+        if (!user) return;
+        const idToken = await user.getIdToken();
+
+        try {
+            const response = await fetch('/api/documents', { headers: { 'Authorization': `Bearer ${idToken}` } });
+            if (!response.ok) throw new Error(`Failed to fetch documents: ${response.statusText}`);
+            const documents = await response.json();
+            renderDocumentList(documents);
+        } catch (error) {
+            console.error(error);
+            showStatusMessage('Could not load your documents.', true);
+            fileListLoading.classList.add('hidden');
+        }
+    }
+
+    function renderDocumentList(documents) {
+        fileListLoading.classList.add('hidden');
+        fileListBody.innerHTML = '';
+        if (documents.length === 0) {
+            fileListEmpty.classList.remove('hidden');
+            fileListTable.classList.add('hidden');
+        } else {
+            fileListEmpty.classList.add('hidden');
+            fileListTable.classList.remove('hidden');
+            documents.sort((a, b) => new Date(b.uploadTimeStamp) - new Date(a.uploadTimeStamp)); // Sort by newest first
+            documents.forEach(doc => {
+                const row = document.createElement('tr');
+                const formattedDate = new Date(doc.uploadTimeStamp).toLocaleDateString();
+                const formattedSize = formatBytes(doc.originalSize);
+                row.innerHTML = `<td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">${doc.fileName}</td><td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">${formattedSize}</td><td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">${formattedDate}</td><td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0"><button data-doc-id="${doc.id}" class="download-btn inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">Download</button></td>`;
+                fileListBody.appendChild(row);
+            });
+        }
+    }
+
+    fileListBody.addEventListener('click', async (e) => {
+        const button = e.target.closest('.download-btn');
+        if (button) {
+            const docId = button.dataset.docId;
+            button.disabled = true;
+            button.innerHTML = '<span class="loader"></span>';
+            try {
+                await downloadDocument(docId);
+            } catch (error) {
+                console.error('Download failed:', error);
+                showStatusMessage(`Failed to download file.`, true);
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Download';
+            }
+        }
+    });
+
+    async function downloadDocument(docId) {
+        const user = auth.currentUser;
+        if (!user) return;
+        const idToken = await user.getIdToken();
+        const response = await fetch(`/api/documents/${docId}/download`, { headers: { 'Authorization': `Bearer ${idToken}` } });
+        if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('content-disposition');
+        let fileName = 'downloaded-file';
+        if (contentDisposition) {
+            const match = contentDisposition.match(/filename="?([^"]+)"?/);
+            if (match && match[1]) fileName = match[1];
+        }
+
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(link.href);
+    }
+
+    // --- FILE UPLOAD LOGIC ---
+    // (This section is unchanged, but included for completeness)
+    fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => fileInputLabel.addEventListener(eventName, preventDefaults, false));
+    ['dragenter', 'dragover'].forEach(eventName => fileInputLabel.addEventListener(eventName, () => fileInputLabel.classList.add('dragover'), false));
+    ['dragleave', 'drop'].forEach(eventName => fileInputLabel.addEventListener(eventName, () => fileInputLabel.classList.remove('dragover'), false));
+    fileInputLabel.addEventListener('drop', (e) => handleFileSelect(e.dataTransfer.files[0]), false);
+
+    function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+    function handleFileSelect(file) {
+        if (file) {
+            currentFile = file;
+            fileNameDisplay.textContent = currentFile.name;
+            uploadButton.disabled = false;
+            hideStatusMessage();
+        }
+    }
+
+    uploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!currentFile) return showStatusMessage('Please select a file first.', true);
+        const user = auth.currentUser;
+        if (!user) return showStatusMessage('You must be logged in to upload files.', true);
+        const idToken = await user.getIdToken();
+        uploadFile(currentFile, idToken);
+    });
+
+    function uploadFile(file, token) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/documents/upload', true);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+        xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+                const percentComplete = (event.loaded / event.total) * 100;
+                progressContainer.classList.remove('hidden');
+                progressBar.style.width = percentComplete + '%';
+            }
+        };
+
+        xhr.onloadstart = () => {
+            uploadButton.disabled = true;
+            uploadButton.textContent = 'Uploading...';
+            hideStatusMessage();
+        };
+
+        xhr.onload = () => {
+            resetUploadUI();
+            if (xhr.status === 201) {
+                showStatusMessage(`'${file.name}' uploaded successfully!`, false);
+                fetchDocuments(); // Refresh the list after a successful upload
+            } else {
+                showStatusMessage(`Upload failed: ${xhr.responseText || 'Server error'}`, true);
+            }
+        };
+
+        xhr.onerror = () => {
+            resetUploadUI();
+            showStatusMessage('An network error occurred during the upload.', true);
+        };
+
+        xhr.send(formData);
+    }
+
+    function resetUploadUI() {
+        uploadButton.disabled = true;
+        uploadButton.textContent = 'Upload File';
+        progressContainer.classList.add('hidden');
+        progressBar.style.width = '0%';
+        fileNameDisplay.textContent = 'Click to upload or drag and drop';
+        uploadForm.reset();
+        currentFile = null;
+    }
+
+    // --- HELPER FUNCTIONS ---
+    function showStatusMessage(message, isError = false) {
+        statusMessage.textContent = message;
+        statusMessage.classList.remove('hidden', 'bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+        statusMessage.classList.add(isError ? 'bg-red-100' : 'bg-green-100', isError ? 'text-red-800' : 'text-green-800');
+    }
+
+    function hideStatusMessage() {
+        statusMessage.classList.add('hidden');
+    }
+
+    function formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+</script>
+</body>
+</html>
+
