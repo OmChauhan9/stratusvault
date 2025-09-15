@@ -56,4 +56,15 @@ public class DocumentDTO {
     public void setUploadTimeStamp(LocalDateTime uploadTimeStamp) {
         this.uploadTimeStamp = uploadTimeStamp;
     }
+
+//    @Override
+//    public String toString() {
+//        return "DocumentDTO{" +
+//                "id=" + id +
+//                ", fileName='" + fileName + '\'' +
+//                ", originalSize=" + originalSize +
+//                ", compressedSize=" + compressedSize +
+//                ", uploadTimeStamp=" + uploadTimeStamp +
+//                '}';
+//    }
 }

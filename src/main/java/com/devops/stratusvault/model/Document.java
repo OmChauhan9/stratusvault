@@ -100,4 +100,18 @@ public class Document {
     public void setContentType(String contentType) {
         this.contentType = contentType;
     }
+
+//    @Override
+//    public String toString() {
+//        return "Document{" +
+//                "id=" + id +
+//                ", fileName='" + fileName + '\'' +
+//                ", gcsPath='" + gcsPath + '\'' +
+//                ", originalSize=" + originalSize +
+//                ", compressedSize=" + compressedSize +
+//                ", uploadTimeStamp=" + uploadTimeStamp +
+//                ", contentType='" + contentType + '\'' +
+//                ", owner=" + owner +
+//                '}';
+//    }
 }

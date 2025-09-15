@@ -13,6 +13,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 
+import static org.springframework.security.config.Customizer.withDefaults;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -29,14 +31,17 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // Disable CSRF protection (not needed for stateless REST APIs)
                 .csrf(csrf -> csrf.disable())
+
                 // Tell Spring Security not to create sessions; each request is authenticated independently
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Define our authorization rules
                 .authorizeHttpRequests(authz -> authz
                         // Allow anyone to access the root URL (to load our login page)
-                        .requestMatchers("/", "/index.html").permitAll()
+                        .requestMatchers("/", "/index.html", "/favicon.ico",
+                                "/css/**", "/js/**", "/images/**", "/static/**").permitAll()
                         // Any request to an endpoint starting with /api/ must be authenticated
                         .requestMatchers("/api/**").authenticated()
+
                         // A good security practice: deny any other requests that don't match our rules
                         .anyRequest().denyAll()
                 )

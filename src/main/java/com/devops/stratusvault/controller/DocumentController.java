@@ -1,6 +1,7 @@
 package com.devops.stratusvault.controller;
 
 import com.devops.stratusvault.dto.DocumentDTO;
+import com.devops.stratusvault.dto.ShareRequestDTO;
 import com.devops.stratusvault.model.Document;
 import com.devops.stratusvault.service.DocumentService;
 import com.devops.stratusvault.service.GcsService;
@@ -51,6 +52,8 @@ public class DocumentController {
         List<DocumentDTO> dtos = documents.stream()
                 .map(doc -> new DocumentDTO(doc.getId(), doc.getFileName(), doc.getOriginalSize(), doc.getCompressedSize(), doc.getUploadTimeStamp()))
                 .collect(Collectors.toList());
+        System.out.println("DTOSSS :::: " + dtos);
+        System.out.println("Documents :::: " + documents);
 
         return ResponseEntity.ok(dtos);
     }
@@ -85,6 +88,18 @@ public class DocumentController {
 
         } catch (IOException e) {
             e.printStackTrace(); // Good for server-side logging
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @PostMapping("/{id}/share")
+    public ResponseEntity<?> shareDocument(@PathVariable long id, @RequestBody ShareRequestDTO shareRequestDTO) {
+        try{
+            String firebaseUid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            String email = shareRequestDTO.getEmail();
+            documentService.shareDocument(id, firebaseUid, email);
+            return ResponseEntity.ok(java.util.Map.of("message", "Document shared successfully"));
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }

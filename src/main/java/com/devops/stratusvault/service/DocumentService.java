@@ -1,9 +1,13 @@
 package com.devops.stratusvault.service;
 
 import com.devops.stratusvault.model.Document;
+import com.devops.stratusvault.model.DocumentPermission;
+import com.devops.stratusvault.model.PermissionLevel;
 import com.devops.stratusvault.model.User;
+import com.devops.stratusvault.repository.DocumentPermissionRepository;
 import com.devops.stratusvault.repository.DocumentRepository;
 import com.devops.stratusvault.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,16 +29,18 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
     private final GcsService gcsService;
+    private final DocumentPermissionRepository documentPermissionRepository;
 
     @Value("${app.gcs.bucket-name}")
     private String gcsBucketName;
 
     public record DownloadableFile(byte[] data, String fileName, String contentType) {}
 
-    public DocumentService(DocumentRepository documentRepository, UserRepository userRepository, GcsService gcsService) {
+    public DocumentService(DocumentRepository documentRepository, UserRepository userRepository, GcsService gcsService, DocumentPermissionRepository documentPermissionRepository) {
         this.documentRepository = documentRepository;
         this.userRepository = userRepository;
         this.gcsService = gcsService;
+        this.documentPermissionRepository = documentPermissionRepository;
     }
 
     public Document uploadDocument(MultipartFile multipartFile, String firebaseUid, String email) throws IOException {
@@ -77,7 +83,8 @@ public class DocumentService {
     }
 
     public List<Document> getDocumentsForUser(String firebaseUid) {
-        return documentRepository.findByOwner_FirebaseUid(firebaseUid);
+        System.out.println("firebaseUId :::: " + firebaseUid);
+        return documentRepository.findDocumentsVisibleTo(firebaseUid);
     }
 
     public Optional<DownloadableFile> downloadDocument(long documentId, String firebaseUid) throws IOException {
@@ -89,17 +96,17 @@ public class DocumentService {
         }
         Document document = documentOptional.get();
 
-        // 2. CRITICAL SECURITY CHECK: Verify the user owns this document
-        if (!document.getOwner().getFirebaseUid().equals(firebaseUid)) {
-            return Optional.empty(); // User is not the owner, act as if file doesn't exist
+        boolean isOwner = document.getOwner().getFirebaseUid().equals(firebaseUid);
+        boolean hasPermission = documentPermissionRepository.existsByDocument_IdAndSharedWithUser_FirebaseUid(documentId, firebaseUid);
+
+        if (!isOwner && !hasPermission) {
+            return Optional.empty();
         }
 
         // 3. Download the compressed file from GCS
         byte[] compressedBytes = gcsService.downloadFile(gcsBucketName, document.getGcsPath());
-
         // 4. Decompress the file data
         byte[] decompressedBytes = decompressGzip(compressedBytes);
-
         // 5. Return the file data in our wrapper object
         return Optional.of(new DownloadableFile(decompressedBytes, document.getFileName(), document.getContentType()));
     }
@@ -116,5 +123,37 @@ public class DocumentService {
 
     public Optional<Document> findDocumentById(long id) {
         return documentRepository.findById(id);
+    }
+
+    @Transactional
+    public void shareDocument(long documentId, String ownerFirebaseUid, String shareWithEmail) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new IllegalArgumentException("Document not found with ID: " + documentId));
+
+        // Security Check: Verify ownership
+        if(!document.getOwner().getFirebaseUid().equals(ownerFirebaseUid)) {
+            throw new SecurityException("Unauthorized: You do not own this document.");
+        }
+
+        User sharedWithUser = userRepository.findByEmail(shareWithEmail)
+                .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + shareWithEmail));
+
+        // Self-Share Check
+        if(sharedWithUser.getFirebaseUid().equals(ownerFirebaseUid)) {
+            throw new IllegalArgumentException("Cannot share a document with yourself.");
+        }
+
+        // Prevent duplicate shares
+        boolean alreadyExists = documentPermissionRepository.existsByDocumentAndSharedWithUser(document,sharedWithUser);
+        if(alreadyExists) {
+            throw new IllegalArgumentException("This document is already shared with that user.");
+        }
+
+        DocumentPermission documentPermission = new DocumentPermission();
+        documentPermission.setDocument(document);
+        documentPermission.setSharedWithUser(sharedWithUser);
+        documentPermission.setPermissionLevel(PermissionLevel.READER);
+
+        documentPermissionRepository.save(documentPermission);
     }
 }
