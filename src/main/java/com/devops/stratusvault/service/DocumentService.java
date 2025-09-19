@@ -1,16 +1,13 @@
 package com.devops.stratusvault.service;
 
-import com.devops.stratusvault.model.Document;
-import com.devops.stratusvault.model.DocumentPermission;
-import com.devops.stratusvault.model.PermissionLevel;
-import com.devops.stratusvault.model.User;
-import com.devops.stratusvault.repository.DocumentPermissionRepository;
-import com.devops.stratusvault.repository.DocumentRepository;
-import com.devops.stratusvault.repository.UserRepository;
-import jakarta.transaction.Transactional;
+import com.devops.stratusvault.exceptionhandler.errors.ForbiddenException;
+import com.devops.stratusvault.exceptionhandler.errors.NotFoundException;
+import com.devops.stratusvault.exceptionhandler.errors.BadRequestException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -22,6 +19,20 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+
+// your existing imports for MultipartFile, GZIP, etc.
+import org.springframework.web.multipart.MultipartFile;
+
+// your project types:
+import com.devops.stratusvault.model.Document;
+import com.devops.stratusvault.model.DocumentPermission;
+import com.devops.stratusvault.model.PermissionLevel;
+import com.devops.stratusvault.model.User;
+import com.devops.stratusvault.repository.DocumentPermissionRepository;
+import com.devops.stratusvault.repository.DocumentRepository;
+import com.devops.stratusvault.repository.UserRepository;
+import org.springframework.web.server.ResponseStatusException;
+
 
 @Service
 public class DocumentService {
@@ -77,14 +88,14 @@ public class DocumentService {
         newDocument.setOriginalSize(multipartFile.getSize());
         newDocument.setCompressedSize(compressedData.length);
         newDocument.setUploadTimeStamp(new Timestamp(System.currentTimeMillis()).toLocalDateTime());
+        newDocument.setContentType(multipartFile.getContentType());
         newDocument.setOwner(user);
 
         return documentRepository.save(newDocument);
     }
 
-    public List<Document> getDocumentsForUser(String firebaseUid) {
-        System.out.println("firebaseUId :::: " + firebaseUid);
-        return documentRepository.findDocumentsVisibleTo(firebaseUid);
+    public List<Document> findForUser(String firebaseUid) {
+        return documentRepository.findDocumentsOwnedByOrSharedWithUser(firebaseUid);
     }
 
     public Optional<DownloadableFile> downloadDocument(long documentId, String firebaseUid) throws IOException {
@@ -97,7 +108,7 @@ public class DocumentService {
         Document document = documentOptional.get();
 
         boolean isOwner = document.getOwner().getFirebaseUid().equals(firebaseUid);
-        boolean hasPermission = documentPermissionRepository.existsByDocument_IdAndSharedWithUser_FirebaseUid(documentId, firebaseUid);
+        boolean hasPermission = documentPermissionRepository.existsPermissionWithFirebaseUid(documentId, firebaseUid);
 
         if (!isOwner && !hasPermission) {
             return Optional.empty();
@@ -125,35 +136,62 @@ public class DocumentService {
         return documentRepository.findById(id);
     }
 
-    @Transactional
-    public void shareDocument(long documentId, String ownerFirebaseUid, String shareWithEmail) {
-        Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found with ID: " + documentId));
+    public void shareDocument(Long documentId, String requesterFirebaseUid, String recipientEmail) {
+        System.out.println("Documetn IDD ::::: " + documentId);
+        // 1) Load the document or 404
+        Document doc = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Document not found"));
 
-        // Security Check: Verify ownership
-        if(!document.getOwner().getFirebaseUid().equals(ownerFirebaseUid)) {
-            throw new SecurityException("Unauthorized: You do not own this document.");
+        // 2) Only the owner may share → 403
+//        User owner = doc.getOwner();
+//        if (owner == null || !requesterFirebaseUid.equals(owner.getFirebaseUid())) {
+//            throw new ResponseStatusException(
+//                    HttpStatus.FORBIDDEN, "Only the owner can share this document");
+//        }
+
+        // 3) Resolve recipient by email (must have signed in at least once) → 404
+        User recipient = userRepository.findByEmail(recipientEmail)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "User with email '%s' is not registered yet. Ask them to sign in once."
+                                .formatted(recipientEmail)));
+
+        // 4) Disallow sharing to self → 400
+        if (requesterFirebaseUid.equals(recipient.getFirebaseUid())) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "You cannot share a document with yourself");
         }
 
-        User sharedWithUser = userRepository.findByEmail(shareWithEmail)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with email: " + shareWithEmail));
+        // 5) Idempotency: if already shared, do nothing
+        boolean alreadyShared =
+                documentPermissionRepository.existsPermissionWithUserId(doc.getId(), recipient.getId());
+        if (alreadyShared) return;
 
-        // Self-Share Check
-        if(sharedWithUser.getFirebaseUid().equals(ownerFirebaseUid)) {
-            throw new IllegalArgumentException("Cannot share a document with yourself.");
+        // 6) Persist permission (race-safe against duplicates)
+        try {
+            DocumentPermission perm = new DocumentPermission();
+            perm.setDocument(doc);
+            perm.setSharedWithUser(recipient);
+            perm.setPermissionLevel(PermissionLevel.READER);
+            documentPermissionRepository.save(perm);
+        } catch (DataIntegrityViolationException ignored) {
+            // another request inserted the same row concurrently; treat as success
         }
-
-        // Prevent duplicate shares
-        boolean alreadyExists = documentPermissionRepository.existsByDocumentAndSharedWithUser(document,sharedWithUser);
-        if(alreadyExists) {
-            throw new IllegalArgumentException("This document is already shared with that user.");
-        }
-
-        DocumentPermission documentPermission = new DocumentPermission();
-        documentPermission.setDocument(document);
-        documentPermission.setSharedWithUser(sharedWithUser);
-        documentPermission.setPermissionLevel(PermissionLevel.READER);
-
-        documentPermissionRepository.save(documentPermission);
     }
+
+    @Transactional
+    public void deleteOwnedDocument(Long id, String requesterUid) {
+        Document doc = documentRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Document not found"));
+        if (doc.getOwner() == null || !requesterUid.equals(doc.getOwner().getFirebaseUid())) {
+            throw new ForbiddenException("Only the owner can delete this document");
+        }
+        // optional: also delete from GCS
+        if (doc.getGcsPath() != null) {
+            gcsService.deleteFile(gcsBucketName, doc.getGcsPath());
+        }
+        documentRepository.delete(doc);
+    }
+
 }

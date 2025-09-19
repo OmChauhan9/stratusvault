@@ -25,4 +25,9 @@ public class GcsService {
         BlobId blobId = BlobId.of(bucketName, objectName);
         return storage.readAllBytes(BlobId.of(bucketName, objectName));
     }
+
+    public boolean deleteFile(String bucketName, String objectName) {
+        return storage.delete(com.google.cloud.storage.BlobId.of(bucketName, objectName));
+    }
+
 }

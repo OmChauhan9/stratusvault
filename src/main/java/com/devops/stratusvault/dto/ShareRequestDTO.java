@@ -3,6 +3,8 @@ package com.devops.stratusvault.dto;
 public class ShareRequestDTO {
     private String email;
 
+    public ShareRequestDTO() {}
+
     public ShareRequestDTO(String email) {
         this.email = email;
     }

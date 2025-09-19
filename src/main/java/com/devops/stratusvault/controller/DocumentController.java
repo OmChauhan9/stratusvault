@@ -1,10 +1,10 @@
 package com.devops.stratusvault.controller;
 
-import com.devops.stratusvault.dto.DocumentDTO;
+import com.devops.stratusvault.dto.DocumentMapper;
+import com.devops.stratusvault.dto.DocumentResponseDTO;
 import com.devops.stratusvault.dto.ShareRequestDTO;
 import com.devops.stratusvault.model.Document;
 import com.devops.stratusvault.service.DocumentService;
-import com.devops.stratusvault.service.GcsService;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.UserRecord;
 import org.springframework.http.*;
@@ -15,7 +15,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -30,13 +29,10 @@ public class DocumentController {
     @PostMapping("/upload")
     public ResponseEntity<?> fileUpload(@RequestParam("file") MultipartFile file) {
         try {
-            String fireBaseUid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            UserRecord decodedToken = FirebaseAuth.getInstance().getUser(fireBaseUid);
-            String email = decodedToken.getEmail();
-
-            Document savedDocument = documentService.uploadDocument(file,fireBaseUid,email);
-            return ResponseEntity.status(HttpStatus.CREATED).body(savedDocument);
-
+            String uid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+            UserRecord decodedToken = FirebaseAuth.getInstance().getUser(uid);
+            Document saved = documentService.uploadDocument(file, uid, decodedToken.getEmail());
+            return ResponseEntity.status(HttpStatus.CREATED).body(DocumentMapper.toResponse(saved));
         } catch (IOException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing file: " + e.getMessage());
         } catch (Exception e) {
@@ -45,18 +41,12 @@ public class DocumentController {
     }
 
     @GetMapping
-    public ResponseEntity<List<DocumentDTO>> getDocumentsForUser() {
-        String firebaseUid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        List<Document> documents = documentService.getDocumentsForUser(firebaseUid);
-
-        List<DocumentDTO> dtos = documents.stream()
-                .map(doc -> new DocumentDTO(doc.getId(), doc.getFileName(), doc.getOriginalSize(), doc.getCompressedSize(), doc.getUploadTimeStamp()))
-                .collect(Collectors.toList());
-        System.out.println("DTOSSS :::: " + dtos);
-        System.out.println("Documents :::: " + documents);
-
-        return ResponseEntity.ok(dtos);
+    public List<DocumentResponseDTO> list() {
+        String uid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<Document> docs = documentService.findForUser(uid);
+        return docs.stream().map(DocumentMapper::toResponse).toList();
     }
+
 
     @GetMapping("/{id}/download")
     public ResponseEntity<byte[]> downloadDocument(@PathVariable long id) {
@@ -92,15 +82,24 @@ public class DocumentController {
         }
     }
 
-    @PostMapping("/{id}/share")
+    @PostMapping(path = "/{id}/share")
     public ResponseEntity<?> shareDocument(@PathVariable long id, @RequestBody ShareRequestDTO shareRequestDTO) {
         try{
+            System.out.println("Share Yeyyy ::::::: " + shareRequestDTO);
             String firebaseUid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            String email = shareRequestDTO.getEmail();
-            documentService.shareDocument(id, firebaseUid, email);
-            return ResponseEntity.ok(java.util.Map.of("message", "Document shared successfully"));
+
+            documentService.shareDocument(id, firebaseUid, shareRequestDTO.getEmail());
+            return ResponseEntity.ok().body(java.util.Map.of("message", "Document shared successfully"));
         } catch (Exception e) {
+            System.out.println("Error over here!!");
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> delete(@PathVariable Long id) {
+        String uid = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        documentService.deleteOwnedDocument(id, uid);
+        return ResponseEntity.noContent().build();
     }
 }

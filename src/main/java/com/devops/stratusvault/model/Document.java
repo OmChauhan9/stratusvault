@@ -19,7 +19,8 @@ public class Document {
     private LocalDateTime uploadTimeStamp;
     private String contentType;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
     public Document(long id, String fileName, String gcsPath, long originalSize, long compressedSize, LocalDateTime uploadTimeStamp, User owner) {
@@ -30,7 +31,6 @@ public class Document {
         this.compressedSize = compressedSize;
         this.uploadTimeStamp = uploadTimeStamp;
         this.owner = owner;
-        this.contentType = contentType;
     }
 
     public Document() {

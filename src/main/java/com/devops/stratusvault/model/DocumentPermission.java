@@ -3,30 +3,32 @@ package com.devops.stratusvault.model;
 import jakarta.persistence.*;
 
 @Entity
+@Table(
+        name = "document_permission",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"document_id","shared_with_user_id"})
+)
 public class DocumentPermission {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_id", nullable = false)
     private Document document;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "shared_with_user_id", nullable = false)
     private User sharedWithUser;
 
     @Enumerated(EnumType.STRING)
-    private PermissionLevel permissionLevel;
+    @Column(nullable = false)
+    private PermissionLevel permissionLevel = PermissionLevel.READER;
 
-    public DocumentPermission(Long id, Document document, User sharedWithUser, PermissionLevel permissionLevel) {
-        this.id = id;
-        this.document = document;
-        this.sharedWithUser = sharedWithUser;
-        this.permissionLevel = permissionLevel;
-    }
+    public DocumentPermission() {}
 
-    public DocumentPermission() {
-
+    public DocumentPermission(Document document, User sharedWithUser) {
+        this.document = document; this.sharedWithUser = sharedWithUser;
     }
 
     public Long getId() {

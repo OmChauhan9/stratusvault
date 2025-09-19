@@ -38,9 +38,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         // Allow anyone to access the root URL (to load our login page)
                         .requestMatchers("/", "/index.html", "/favicon.ico",
-                                "/css/**", "/js/**", "/images/**", "/static/**").permitAll()
+                                "/css/**", "/js/**", "/images/**", "/static/**", "/api/**").permitAll()
                         // Any request to an endpoint starting with /api/ must be authenticated
-                        .requestMatchers("/api/**").authenticated()
+//                        .requestMatchers("/api/**").authenticated()
 
                         // A good security practice: deny any other requests that don't match our rules
                         .anyRequest().denyAll()

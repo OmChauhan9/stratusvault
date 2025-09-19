@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>StratusVault - Secure Document Locker</title>
-
-    <!-- Avoid 403 for /favicon.ico -->
+    <title>StratusVault — Secure Document Locker</title>
     <link rel="icon" href="data:,"/>
 
+    <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com"/>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -18,70 +17,185 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
     <style>
+        :root { color-scheme: light; }
         body { font-family: 'Inter', sans-serif; }
-        .file-input-label.dragover { border-color: #3b82f6; background-color: #eff6ff; }
-        .loader { width: 16px; height: 16px; border: 2px solid #FFF; border-bottom-color: transparent; border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite; }
-        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .modal-overlay { transition: opacity 0.3s ease; }
-        .modal-container { transition: all 0.3s ease; }
+        .glass { backdrop-filter: blur(10px); background: rgba(255,255,255,0.75); }
+        .elev { box-shadow: 0 10px 30px rgba(2, 6, 23, 0.08); }
+        .modal-overlay { transition: opacity .2s ease; }
+        .modal-card { transform: translateY(8px); opacity: 0; transition: all .2s ease; }
+        .modal-open .modal-card { transform: translateY(0); opacity: 1; }
+        .drop-active { border-color: #3b82f6; background-color: #eff6ff; }
+        .btn { display:inline-flex; align-items:center; justify-content:center; gap:.5rem; border-radius:.75rem; font-weight:600; }
+        .btn-sm { padding:.5rem .75rem; font-size:.8rem; }
+        .btn-md { padding:.625rem .875rem; font-size:.9rem; }
+        .btn-blue { background:#2563eb; color:#fff; }
+        .btn-blue:hover { background:#1d4ed8; }
+        .btn-white { background:#fff; color:#0f172a; border:1px solid rgba(2,6,23,.1); }
+        .btn-white:hover { background:#f8fafc; }
+        .btn-red { background:#dc2626; color:#fff; }
+        .btn-red:hover { background:#b91c1c; }
+        .skeleton { animation: pulse 1.2s ease-in-out infinite; background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 37%,#f1f5f9 63%); background-size:400% 100%; }
+        @keyframes pulse { 0%{background-position:100% 50%} 100%{background-position:0 50%} }
     </style>
 </head>
 
-<body class="bg-slate-50 text-slate-800 flex items-center justify-center min-h-screen p-4">
-<div id="app-container" class="w-full max-w-6xl mx-auto">
-    <!-- Logged Out View — visible by default to avoid blank page -->
-    <div id="logged-out-view" class="text-center bg-white p-8 rounded-xl shadow-md max-w-lg mx-auto">
-        <svg class="mx-auto h-12 w-auto text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.33-2.33 4.5 4.5 0 01-1.41 8.775"/></svg>
-        <h1 class="mt-4 text-2xl font-bold tracking-tight text-slate-900">StratusVault</h1>
-        <p class="mt-2 text-slate-600">Your secure, personal document locker in the cloud.</p>
-        <button id="login-button" class="mt-6 inline-flex items-center gap-x-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">Sign In with Google</button>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-50">
+<!-- Topbar -->
+<header class="sticky top-0 z-20 bg-white/70 glass border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="h-9 w-9 rounded-xl bg-blue-600 text-white grid place-items-center elev">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.75 7.5 12 3l8.25 4.5M3.75 7.5 12 12m0 0 8.25-4.5M12 12v9"/>
+                </svg>
+            </div>
+            <div class="leading-tight">
+                <div class="font-semibold text-slate-900">StratusVault</div>
+                <div class="text-xs text-slate-500">Secure Document Locker</div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <span id="header-user" class="hidden text-sm text-slate-600"></span>
+            <button id="login-button" class="btn btn-md btn-blue">Sign In with Google</button>
+            <button id="logout-button" class="hidden btn btn-md btn-white">Log Out</button>
+        </div>
+    </div>
+</header>
+
+<!-- Logged out hero -->
+<main id="logged-out-view" class="max-w-7xl mx-auto px-4">
+    <section class="mt-16 grid md:grid-cols-2 gap-8 items-center">
+        <div>
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">Your files, organized & secure.</h1>
+            <p class="mt-3 text-slate-600">Upload, share, and download with confidence. Sign in to get started.</p>
+            <div class="mt-6 flex gap-3">
+                <button id="login-button-hero" class="btn btn-md btn-blue">Sign In with Google</button>
+                <a class="btn btn-md btn-white" href="#">Learn more</a>
+            </div>
+        </div>
+        <div class="glass elev rounded-2xl p-6">
+            <div class="h-32 rounded-xl bg-gradient-to-tr from-blue-100 to-indigo-100"></div>
+            <div class="mt-4 h-3 rounded skeleton"></div>
+            <div class="mt-2 h-3 rounded skeleton w-5/6"></div>
+            <div class="mt-2 h-3 rounded skeleton w-4/6"></div>
+        </div>
+    </section>
+</main>
+
+<!-- Logged in dashboard -->
+<main id="logged-in-view" class="hidden max-w-7xl mx-auto px-4">
+    <div class="mt-8 flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-semibold text-slate-900">Dashboard</h2>
+            <p id="user-welcome" class="text-sm text-slate-500">Welcome!</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button id="refresh-button" class="btn btn-md btn-white">Refresh</button>
+            <button id="open-upload-modal" class="btn btn-md btn-blue">Upload</button>
+        </div>
     </div>
 
-    <!-- Logged In View -->
-    <div id="logged-in-view" class="hidden w-full">
-        <header class="flex items-center justify-between pb-4 border-b border-slate-200">
-            <div>
-                <h1 class="text-xl font-bold text-slate-900">StratusVault</h1>
-                <p id="user-welcome" class="text-sm text-slate-500">Welcome!</p>
-            </div>
-            <button id="logout-button" class="rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Log Out</button>
-        </header>
+    <div id="status-message" class="mt-4 hidden"></div>
 
-        <main class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="lg:col-span-2 space-y-8">
-                <div class="bg-white p-6 rounded-xl shadow-md"><h2 class="text-lg font-semibold text-slate-900">My Documents</h2><div id="my-files-container" class="mt-4 flow-root"></div></div>
-                <div class="bg-white p-6 rounded-xl shadow-md"><h2 class="text-lg font-semibold text-slate-900">Shared With Me</h2><div id="shared-files-container" class="mt-4 flow-root"></div></div>
+    <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <section class="lg:col-span-2 space-y-6">
+            <div class="glass elev rounded-2xl p-6">
+                <h3 class="text-base font-semibold text-slate-900">My Files</h3>
+                <div id="my-files-container" class="mt-4"></div>
             </div>
 
-            <div class="lg:col-span-1">
-                <div class="bg-white p-6 rounded-xl shadow-md">
-                    <h2 class="text-lg font-semibold text-slate-900">Upload Document</h2>
-                    <form id="upload-form" class="mt-4">
-                        <label for="file-upload" class="file-input-label block w-full relative border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-500">
-                            <svg class="mx-auto h-12 w-12 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.33-2.33 4.5 4.5 0 01-1.41 8.775"/></svg>
-                            <span id="file-name-display" class="mt-2 block text-sm font-semibold text-slate-900">Click to upload or drag and drop</span>
-                            <span class="mt-1 block text-xs text-slate-500">Any file type, up to 25MB</span>
-                            <input id="file-upload" name="file" type="file" class="sr-only"/>
-                        </label>
+            <div class="glass elev rounded-2xl p-6">
+                <h3 class="text-base font-semibold text-slate-900">Files Shared With Me</h3>
+                <div id="shared-files-container" class="mt-4"></div>
+            </div>
+        </section>
 
-                        <div id="progress-container" class="mt-4 hidden">
-                            <div class="w-full bg-slate-200 rounded-full h-2.5"><div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width:0%"></div></div>
-                        </div>
+        <aside class="lg:col-span-1">
+            <div class="glass elev rounded-2xl p-6">
+                <h3 class="text-base font-semibold text-slate-900">Quick Actions</h3>
+                <p class="mt-2 text-sm text-slate-600">Upload new files, share with others, or manage your documents.</p>
+                <button id="open-upload-modal-2" class="mt-4 btn btn-md btn-blue w-full">Upload a File</button>
+            </div>
+        </aside>
+    </div>
+</main>
 
-                        <button id="upload-button" type="submit" disabled class="mt-6 w-full rounded-md bg-blue-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:bg-slate-400 disabled:cursor-not-allowed">Upload File</button>
-                    </form>
+<!-- Upload Modal -->
+<div id="upload-modal" class="hidden fixed inset-0 z-30 modal-overlay bg-black/40"></div>
+<div id="upload-modal-card" class="hidden fixed inset-0 z-40 grid place-items-center modal-open">
+    <div class="modal-card glass elev w-full max-w-lg rounded-2xl">
+        <div class="p-6">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900">Upload a file</h3>
+                    <p class="text-sm text-slate-500">Select a file or drag & drop.</p>
+                </div>
+                <button id="close-upload-x" class="btn btn-sm btn-white">✕</button>
+            </div>
 
-                    <div id="status-message" class="mt-4 p-4 rounded-md hidden text-sm"></div>
+            <div id="drop-zone" class="mt-4 border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
+                <input id="modal-file-input" type="file" class="sr-only"/>
+                <p id="selected-file-name" class="text-sm text-slate-600">No file selected</p>
+                <div class="mt-4 flex items-center justify-center gap-2">
+                    <button id="choose-file-button" class="btn btn-md btn-white">Choose file</button>
                 </div>
             </div>
-        </main>
+
+            <div id="upload-progress" class="mt-4 hidden">
+                <div class="w-full bg-slate-200 rounded-full h-2.5">
+                    <div id="upload-progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width:0%"></div>
+                </div>
+                <p id="upload-progress-label" class="mt-2 text-xs text-slate-500">0%</p>
+            </div>
+        </div>
+        <div class="bg-slate-50/70 rounded-b-2xl px-6 py-3 flex items-center justify-end gap-2">
+            <button id="cancel-upload-button" class="btn btn-md btn-white">Cancel</button>
+            <button id="confirm-upload-button" class="btn btn-md btn-blue" disabled>Upload</button>
+        </div>
     </div>
 </div>
 
 <!-- Share Modal -->
-<div id="share-modal" class="relative z-10 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 modal-overlay"></div>
-    <div class="fixed inset-0 z-10 w-screen overflow-y-auto"><div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0"><div class="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl modal-container sm:my-8 sm:w-full sm:max-w-lg"><form id="share-form"><div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4"><div class="sm:flex sm:items-start"><div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10"><svg class="h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.217 10.907a2.25 2.25 0 100 4.186m0-4.186c.03.002.061.002.092.002h2.093c.031 0 .062 0 .092-.002a2.25 2.25 0 012.093 4.186m-4.186 0a2.25 2.25 0 000 4.186h2.093a2.25 2.25 0 000-4.186m0 4.186l-2.135 2.135a2.25 2.25 0 000 3.182m0-3.182a2.25 2.25 0 010 3.182L4.93 19.577a2.25 2.25 0 01-3.182 0m3.182 0l2.135-2.135m0 0a2.25 2.25 0 003.182 0m-3.182 0l-2.135 2.135"/></svg></div><div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left"><h3 class="text-base font-semibold leading-6 text-gray-900" id="modal-title">Share Document</h3><div class="mt-2"><p id="share-modal-filename" class="text-sm text-gray-500 mb-4"></p><label for="email" class="block text-sm font-medium leading-6 text-gray-900">User's Email Address</label><div class="mt-2"><input type="email" name="email" id="share-email-input" required class="block w-full rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6" placeholder="you@example.com"></div></div></div></div></div><div class="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6"><button type="submit" id="confirm-share-button" class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 sm:ml-3 sm:w-auto">Share</button><button type="button" id="cancel-share-button" class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">Cancel</button></div></form></div></div></div>
+<div id="share-modal" class="hidden fixed inset-0 z-30 modal-overlay bg-black/40"></div>
+<div id="share-modal-card" class="hidden fixed inset-0 z-40 grid place-items-center modal-open">
+    <div class="modal-card glass elev w-full max-w-lg rounded-2xl">
+        <div class="p-6">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900">Share Document</h3>
+                    <p id="share-modal-filename" class="text-sm text-slate-500"></p>
+                </div>
+                <button id="close-share-x" class="btn btn-sm btn-white">✕</button>
+            </div>
+            <label class="mt-4 block text-sm font-medium text-slate-900">User's Email Address</label>
+            <input id="share-email-input" type="email" required class="mt-2 block w-full rounded-md border-0 py-2 px-3 text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600" placeholder="you@example.com"/>
+        </div>
+        <div class="bg-slate-50/70 rounded-b-2xl px-6 py-3 flex items-center justify-end gap-2">
+            <button id="cancel-share-button" class="btn btn-md btn-white">Cancel</button>
+            <button id="confirm-share-button" class="btn btn-md btn-blue">Share</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="delete-modal" class="hidden fixed inset-0 z-30 modal-overlay bg-black/40"></div>
+<div id="delete-modal-card" class="hidden fixed inset-0 z-40 grid place-items-center modal-open">
+    <div class="modal-card glass elev w-full max-w-lg rounded-2xl">
+        <div class="p-6">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900">Delete Document</h3>
+                    <p id="delete-modal-text" class="text-sm text-slate-500"></p>
+                </div>
+                <button id="close-delete-x" class="btn btn-sm btn-white">✕</button>
+            </div>
+        </div>
+        <div class="bg-slate-50/70 rounded-b-2xl px-6 py-3 flex items-center justify-end gap-2">
+            <button id="cancel-delete-button" class="btn btn-md btn-white">Cancel</button>
+            <button id="confirm-delete-button" class="btn btn-md btn-red">Delete</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -95,294 +209,324 @@
         appId: "1:887984050545:web:0ef08df970581f312ba6d0",
         measurementId: "G-FM00RLGMMC"
     };
-    try {
-        if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-    } catch (e) {
-        console.error('Firebase init failed:', e);
-    }
+    try { if (typeof firebaseConfig !== 'undefined' && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); } }
+    catch (e) { console.error('Firebase init failed:', e); }
+    var auth = (firebase.apps && firebase.apps.length) ? firebase.auth() : null;
 
-    const auth = (firebase.apps && firebase.apps.length) ? firebase.auth() : null;
+    /* ---------- DOM ---------- */
+    var loggedOutView = document.getElementById('logged-out-view');
+    var loggedInView  = document.getElementById('logged-in-view');
+    var loginButton   = document.getElementById('login-button');
+    var loginButtonHero = document.getElementById('login-button-hero');
+    var logoutButton  = document.getElementById('logout-button');
+    var headerUser    = document.getElementById('header-user');
+    var userWelcome   = document.getElementById('user-welcome');
 
-    // --- DOM elements ---
-    const loggedOutView = document.getElementById('logged-out-view');
-    const loggedInView  = document.getElementById('logged-in-view');
-    const loginButton   = document.getElementById('login-button');
-    const logoutButton  = document.getElementById('logout-button');
-    const userWelcomeDisplay = document.getElementById('user-welcome');
+    var refreshButton = document.getElementById('refresh-button');
+    var statusMessage = document.getElementById('status-message');
 
-    const uploadForm    = document.getElementById('upload-form');
-    const fileInput     = document.getElementById('file-upload');
-    const fileNameDisplay = document.getElementById('file-name-display');
-    const uploadButton  = document.getElementById('upload-button');
-    const progressContainer = document.getElementById('progress-container');
-    const progressBar   = document.getElementById('progress-bar');
-    const statusMessage = document.getElementById('status-message');
+    var myFilesContainer = document.getElementById('my-files-container');
+    var sharedFilesContainer = document.getElementById('shared-files-container');
 
-    const myFilesContainer = document.getElementById('my-files-container');
-    const sharedFilesContainer = document.getElementById('shared-files-container');
+    // Upload modal
+    var uploadModal = document.getElementById('upload-modal');
+    var uploadCard  = document.getElementById('upload-modal-card');
+    var closeUploadX = document.getElementById('close-upload-x');
+    var openUpload1 = document.getElementById('open-upload-modal');
+    var openUpload2 = document.getElementById('open-upload-modal-2');
+    var cancelUploadButton = document.getElementById('cancel-upload-button');
+    var confirmUploadButton = document.getElementById('confirm-upload-button');
+    var modalFileInput = document.getElementById('modal-file-input');
+    var chooseFileButton = document.getElementById('choose-file-button');
+    var selectedFileName = document.getElementById('selected-file-name');
+    var dropZone = document.getElementById('drop-zone');
+    var uploadProgress = document.getElementById('upload-progress');
+    var uploadProgressBar = document.getElementById('upload-progress-bar');
+    var uploadProgressLabel = document.getElementById('upload-progress-label');
 
-    const shareModal = document.getElementById('share-modal');
-    const shareForm  = document.getElementById('share-form');
-    const shareModalFilename = document.getElementById('share-modal-filename');
-    const shareEmailInput = document.getElementById('share-email-input');
-    const confirmShareButton = document.getElementById('confirm-share-button');
-    const cancelShareButton  = document.getElementById('cancel-share-button');
+    // Share modal
+    var shareModal = document.getElementById('share-modal');
+    var shareCard  = document.getElementById('share-modal-card');
+    var cancelShareButton = document.getElementById('cancel-share-button');
+    var confirmShareButton = document.getElementById('confirm-share-button');
+    var shareEmailInput = document.getElementById('share-email-input');
+    var shareModalFilename = document.getElementById('share-modal-filename');
+    var closeShareX = document.getElementById('close-share-x');
 
-    let currentFile = null;
-    let currentDocumentToShare = null;
+    // Delete modal
+    var deleteModal = document.getElementById('delete-modal');
+    var deleteCard  = document.getElementById('delete-modal-card');
+    var cancelDeleteButton = document.getElementById('cancel-delete-button');
+    var confirmDeleteButton = document.getElementById('confirm-delete-button');
+    var deleteModalText = document.getElementById('delete-modal-text');
+    var closeDeleteX = document.getElementById('close-delete-x');
 
-    // ------- Backend compatibility helpers (DTO or entity) -------
-    function getOwnerUid(doc) {
+    // State
+    var currentFile = null;
+    var currentDocToShare = null;
+    var currentDocToDelete = null;
+
+    /* ---------- Helpers (handle DTO or entity shapes) ---------- */
+    function getOwnerUid(doc){
         return (doc.owner && doc.owner.firebaseUid) ||
             doc.ownerFirebaseUid || doc.owner_uid || doc.ownerUid || null;
     }
-    function getOwnerEmail(doc) {
-        return (doc.owner && doc.owner.email) ||
-            doc.ownerEmail || doc.owner_email || '';
+    function getOwnerEmail(doc){
+        return (doc.owner && (doc.owner.email || doc.owner.username || doc.owner.name)) ||
+            doc.ownerEmail || doc.owner_email || doc.ownerName || doc.owner_name || '';
     }
-    function getUploadTimestamp(doc) {
+    function getUploadTs(doc){
         return doc.uploadTimeStamp || doc.uploadTimestamp || doc.uploadedAt || doc.createdAt || null;
     }
-    function getOriginalSize(doc) {
-        return (doc.originalSize != null ? doc.originalSize :
-            (doc.size != null ? doc.size :
-                (doc.fileSize != null ? doc.fileSize : 0)));
+    function getSize(doc){
+        return (doc.originalSize!=null ? doc.originalSize :
+            (doc.size!=null ? doc.size :
+                (doc.fileSize!=null ? doc.fileSize : 0)));
     }
-    function getFileName(doc) {
-        return doc.fileName || doc.filename || doc.name || 'file';
+    function getName(doc){ return doc.fileName || doc.filename || doc.name || 'file'; }
+    function getId(doc){ return (doc.id!=null ? doc.id : (doc.documentId!=null ? doc.documentId : doc.document_id)); }
+
+    // KEY FIX: classify correctly even if owner is missing in the payload
+    function isSharedWithMe(doc, currentUid){
+        var ou = getOwnerUid(doc);
+        if (ou) return ou !== currentUid;                 // confident classification
+        if (doc.shared === true || doc.sharedWithMe === true) return true; // explicit flags
+        return false;                                     // default to "My Files" if unknown
     }
 
-    // --- AUTH wiring ---
+    function fmtBytes(bytes){ if(!+bytes)return'0 Bytes'; var u=['Bytes','KB','MB','GB','TB']; var i=Math.floor(Math.log(bytes)/Math.log(1024)); var v=(bytes/Math.pow(1024,i)).toFixed(2); return parseFloat(v)+' '+u[i]; }
+    function el(tag, cls, txt){ var n=document.createElement(tag); if(cls) n.className=cls; if(txt!=null) n.textContent=txt; return n; }
+    function clr(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+    function toast(msg, ok){ statusMessage.className='mt-4 rounded-xl px-4 py-3 elev text-sm '+(ok?'bg-green-50 text-green-800':'bg-red-50 text-red-800'); statusMessage.textContent=msg; statusMessage.style.display='block'; setTimeout(function(){ statusMessage.style.display='none'; }, 2600); }
+
+    /* ---------- Auth ---------- */
     if (auth) {
-        auth.onAuthStateChanged(function(user) {
-            if (user) {
-                loggedInView.classList.remove('hidden');
-                loggedOutView.classList.add('hidden');
-                userWelcomeDisplay.textContent = 'Welcome, ' + (user.displayName || user.email || 'user');
-                hideStatusMessage();
-                fetchDocuments();
-            } else {
-                loggedInView.classList.add('hidden');
-                loggedOutView.classList.remove('hidden');
-                userWelcomeDisplay.textContent = '';
-                myFilesContainer.innerHTML = '';
-                sharedFilesContainer.innerHTML = '';
-            }
-        });
-
-        loginButton.addEventListener('click', function () {
-            var provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider).catch(function(err){ console.error('Login failed:', err); });
-        });
-        logoutButton.addEventListener('click', function(){ auth.signOut(); });
-    } else {
-        console.warn('Missing firebaseConfig. The page will render but auth/upload won’t work until you paste it.');
-    }
-
-    // --- DOCUMENTS: fetch & render ---
-    async function fetchDocuments() {
-        var user = auth && auth.currentUser;
-        if (!user) return;
-
-        myFilesContainer.innerHTML = '<div class="text-center py-4"><p class="text-slate-500">Loading documents...</p></div>';
-        sharedFilesContainer.innerHTML = '<div class="text-center py-4"><p class="text-slate-500">Loading documents...</p></div>';
-
-        var idToken = await user.getIdToken();
-        try {
-            var r = await fetch('/api/documents', { headers: { 'Authorization': 'Bearer ' + idToken } });
-            if (!r.ok) {
-                showStatusMessage('Could not load your documents.', true);
-                myFilesContainer.innerHTML = '';
-                sharedFilesContainer.innerHTML = '';
-                return;
-            }
-            var documents = await r.json();
-            renderDocumentLists(documents);
-        } catch (e) {
-            console.error(e);
-            showStatusMessage('Could not load your documents.', true);
-            myFilesContainer.innerHTML = '';
-            sharedFilesContainer.innerHTML = '';
+        function onSignedIn(user){
+            loggedOutView.classList.add('hidden');
+            loggedInView.classList.remove('hidden');
+            headerUser.classList.remove('hidden');
+            headerUser.textContent = user.displayName || user.email || 'user';
+            document.getElementById('logout-button').classList.remove('hidden');
+            document.getElementById('login-button').classList.add('hidden');
+            userWelcome.textContent = 'Welcome, ' + (user.displayName || user.email || 'user');
+            fetchDocuments();
         }
+        function onSignedOut(){
+            loggedInView.classList.add('hidden');
+            loggedOutView.classList.remove('hidden');
+            headerUser.classList.add('hidden');
+            headerUser.textContent = '';
+            document.getElementById('logout-button').classList.add('hidden');
+            document.getElementById('login-button').classList.remove('hidden');
+            clr(myFilesContainer); clr(sharedFilesContainer);
+        }
+        auth.onAuthStateChanged(function(user){ if(user) onSignedIn(user); else onSignedOut(); });
+
+        function startLogin(){ var provider=new firebase.auth.GoogleAuthProvider(); auth.signInWithPopup(provider).catch(function(e){ console.error(e); toast('Login failed: '+e.message,false); }); }
+        if (loginButton) loginButton.addEventListener('click', startLogin);
+        if (loginButtonHero) loginButtonHero.addEventListener('click', startLogin);
+        logoutButton.addEventListener('click', function(){ auth.signOut(); });
     }
 
-    function renderDocumentLists(documents) {
-        var currentUser = auth && auth.currentUser;
-        if (!currentUser || !documents) return;
-
-        var myDocuments = documents.filter(function(d){ return getOwnerUid(d) === currentUser.uid; });
-        var sharedDocuments = documents.filter(function(d){
-            var uid = getOwnerUid(d);
-            return uid && uid !== currentUser.uid;
-        });
-
-        renderTable(myFilesContainer, myDocuments, true);
-        renderTable(sharedFilesContainer, sharedDocuments, false);
+    /* ---------- Fetch & render ---------- */
+    function skeleton(container){
+        clr(container);
+        var wrap = el('div','space-y-2');
+        for (var i=0;i<3;i++){ var s=el('div','h-10 rounded skeleton'); wrap.appendChild(s); }
+        container.appendChild(wrap);
     }
 
-    function renderTable(container, docs, isOwnerView) {
-        container.innerHTML = '';
-        if (!docs || docs.length === 0) {
-            var msg = isOwnerView ? 'Get started by uploading a new file.' : 'No documents have been shared with you.';
-            container.innerHTML =
-                '<div class="text-center py-8">' +
-                '<svg class="mx-auto h-12 w-12 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>' +
-                '<h3 class="mt-2 text-sm font-medium text-slate-900">No documents</h3>' +
-                '<p class="mt-1 text-sm text-slate-500">' + msg + '</p>' +
-                '</div>';
+    async function fetchDocuments(){
+        var user = auth && auth.currentUser; if(!user) return;
+        skeleton(myFilesContainer); skeleton(sharedFilesContainer);
+
+        var token = await user.getIdToken();
+        try{
+            var r = await fetch('/api/documents',{ headers:{ 'Authorization':'Bearer '+token }});
+            if(!r.ok){ clr(myFilesContainer); clr(sharedFilesContainer); toast('Could not load your documents.', false); return; }
+            var docs = await r.json();
+            renderLists(docs);
+        }catch(e){ console.error(e); clr(myFilesContainer); clr(sharedFilesContainer); toast('Could not load your documents.', false); }
+    }
+
+    function renderLists(docs){
+        var me = auth && auth.currentUser;
+        if(!me || !Array.isArray(docs)) return;
+
+        var mine = [], shared = [];
+        for (var i=0;i<docs.length;i++){
+            var d = docs[i];
+            if (isSharedWithMe(d, me.uid)) shared.push(d); else mine.push(d);
+        }
+
+        renderTable(myFilesContainer, mine, true);
+        renderTable(sharedFilesContainer, shared, false);
+    }
+
+    function renderTable(container, list, isOwner){
+        clr(container);
+        if(!list || list.length===0){
+            var empty = el('div','text-center py-12');
+            empty.appendChild(el('div','mx-auto h-12 w-12 rounded-full bg-slate-100 grid place-items-center'));
+            empty.lastChild.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 16.5V9.75m0 0l-3 3m3-3l3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.33-2.33 4.5 4.5 0 01-1.41 8.775"/></svg>';
+            empty.appendChild(el('h4','mt-4 text-sm font-medium text-slate-900', isOwner?'No documents yet':'No shared documents'));
+            empty.appendChild(el('p','mt-1 text-sm text-slate-500', isOwner?'Upload a file to get started.':'Ask someone to share a file with you.'));
+            container.appendChild(empty);
             return;
         }
 
-        var table = document.createElement('table');
-        table.className = 'min-w-full divide-y divide-slate-200';
-        var headers =
-            '<th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-0">File Name</th>' +
-            '<th class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Size</th>';
-        if (!isOwnerView) headers += '<th class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Owner</th>';
-        headers += '<th class="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Date Uploaded</th>' +
-            '<th class="relative py-3.5 pl-3 pr-4 sm:pr-0"><span class="sr-only">Actions</span></th>';
-        table.innerHTML = '<thead><tr>' + headers + '</tr></thead><tbody class="divide-y divide-slate-200"></tbody>';
-        var tbody = table.querySelector('tbody');
+        var table = el('div','overflow-hidden rounded-xl border border-slate-200');
+        var head = el('div','grid grid-cols-12 bg-slate-50 border-b border-slate-200 px-4 py-3 text-xs font-semibold text-slate-600');
+        head.appendChild(el('div','col-span-6','File'));
+        head.appendChild(el('div','col-span-2','Size'));
+        if(!isOwner) head.appendChild(el('div','col-span-2','Owner'));
+        else head.appendChild(el('div','col-span-2','Uploaded'));
+        head.appendChild(el('div','col-span-2 text-right','Actions'));
+        table.appendChild(head);
 
-        docs.slice().sort(function(a,b){
-            var tb = getUploadTimestamp(b) || 0;
-            var ta = getUploadTimestamp(a) || 0;
-            return new Date(tb) - new Date(ta);
-        }).forEach(function(doc){
-            var fileName = getFileName(doc);
-            var size = formatBytes(getOriginalSize(doc));
-            var ownerEmail = getOwnerEmail(doc);
-            var ts = getUploadTimestamp(doc);
-            var formattedDate = ts ? new Date(ts).toLocaleDateString() : '';
-
-            var cells =
-                '<td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">' + fileName + '</td>' +
-                '<td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">' + size + '</td>';
-            if (!isOwnerView) cells += '<td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">' + ownerEmail + '</td>';
-            cells += '<td class="whitespace-nowrap px-3 py-4 text-sm text-slate-500">' + formattedDate + '</td>';
-
-            var actions =
-                '<div class="flex items-center justify-end gap-x-2">' +
-                '<button data-doc-id="' + doc.id + '" class="download-btn inline-flex items-center gap-x-1.5 rounded-md bg-blue-600 px-2.5 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">Download</button>';
-            if (isOwnerView) {
-                actions += '<button data-doc-id="' + doc.id + '" data-doc-name="' + fileName + '" class="share-btn rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">Share</button>';
-            }
-            actions += '</div>';
-
-            var row = document.createElement('tr');
-            row.innerHTML = cells + '<td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">' + actions + '</td>';
-            tbody.appendChild(row);
+        list.sort(function(a,b){
+            var ta = new Date(getUploadTs(a)||0).getTime();
+            var tb = new Date(getUploadTs(b)||0).getTime();
+            return tb - ta;
         });
+
+        for (var i=0;i<list.length;i++){
+            var d = list[i];
+            var row = el('div','grid grid-cols-12 items-center px-4 py-3 hover:bg-slate-50 transition-colors');
+
+            var left = el('div','col-span-6 flex items-center gap-3');
+            var icon = el('div','h-9 w-9 rounded-lg bg-blue-50 text-blue-600 grid place-items-center');
+            icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7.5A2.25 2.25 0 015.25 5.25h7.5L18 10.5v6.75A2.25 2.25 0 0115.75 19.5H5.25A2.25 2.25 0 013 17.25V7.5z"/></svg>';
+            var meta = el('div','min-w-0');
+            meta.appendChild(el('div','truncate text-sm font-medium text-slate-900', getName(d)));
+            meta.appendChild(el('div','text-xs text-slate-500', new Date(getUploadTs(d)||Date.now()).toLocaleString()));
+            left.appendChild(icon); left.appendChild(meta);
+            row.appendChild(left);
+
+            row.appendChild(el('div','col-span-2 text-sm text-slate-600', fmtBytes(getSize(d))));
+
+            if(!isOwner){
+                var ownerLabel = getOwnerEmail(d);
+                if (!ownerLabel) {
+                    var ou = getOwnerUid(d);
+                    ownerLabel = ou ? '(' + String(ou).slice(0,6) + '…)' : '—';
+                }
+                row.appendChild(el('div','col-span-2 text-sm text-slate-600', ownerLabel));
+            } else {
+                row.appendChild(el('div','col-span-2 text-sm text-slate-600', new Date(getUploadTs(d)||Date.now()).toLocaleDateString()));
+            }
+
+            var actions = el('div','col-span-2 flex items-center justify-end gap-2');
+            var btnDl = el('button','btn btn-sm btn-white'); btnDl.textContent='Download'; btnDl.dataset.docId=getId(d);
+            actions.appendChild(btnDl);
+            if(isOwner){
+                var btnSh = el('button','btn btn-sm btn-white'); btnSh.textContent='Share'; btnSh.dataset.docId=getId(d); btnSh.dataset.docName=getName(d);
+                var btnDel = el('button','btn btn-sm btn-red'); btnDel.textContent='Delete'; btnDel.dataset.docId=getId(d); btnDel.dataset.docName=getName(d);
+                actions.appendChild(btnSh); actions.appendChild(btnDel);
+            }
+            row.appendChild(actions);
+
+            table.appendChild(row);
+        }
 
         container.appendChild(table);
     }
 
-    // --- Events (delegated) ---
-    document.getElementById('logged-in-view').addEventListener('click', async function(e) {
-        var downloadButton = e.target.closest('.download-btn');
-        var shareButton = e.target.closest('.share-btn');
-        if (downloadButton) {
-            var id = downloadButton.dataset.docId;
-            downloadButton.disabled = true; downloadButton.innerHTML = '<span class="loader"></span>';
-            try { await downloadDocument(id); } catch (err) { console.error(err); showStatusMessage('Failed to download file.', true); }
-            finally { downloadButton.disabled=false; downloadButton.textContent='Download'; }
-        }
-        if (shareButton) {
-            currentDocumentToShare = { id: shareButton.dataset.docId, name: shareButton.dataset.docName };
-            shareModalFilename.textContent = 'Sharing: ' + currentDocumentToShare.name;
-            shareModal.classList.remove('hidden');
-        }
-    });
-
-    // --- Share modal ---
-    cancelShareButton.addEventListener('click', function(){ shareModal.classList.add('hidden'); shareForm.reset(); });
-    shareForm.addEventListener('submit', async function(e){
-        e.preventDefault();
-        var user = auth && auth.currentUser;
-        if (!user || !currentDocumentToShare) return;
-        var idToken = await user.getIdToken();
-        confirmShareButton.disabled = true; confirmShareButton.innerHTML = '<span class="loader"></span>';
-        try {
-            var res = await fetch('/api/documents/' + currentDocumentToShare.id + '/share', {
-                method: 'POST',
-                headers: {'Authorization': 'Bearer ' + idToken, 'Content-Type':'application/json'},
-                body: JSON.stringify({ email: shareEmailInput.value })
-            });
-            var text = await res.text();
-            var body = null; try { body = text ? JSON.parse(text) : null; } catch(e){}
-            if (!res.ok) throw new Error((body && body.message) || res.statusText || 'Failed to share document.');
-            showStatusMessage((body && body.message) || 'Document shared successfully', false);
-            shareModal.classList.add('hidden'); shareForm.reset(); fetchDocuments();
-        } catch (err) {
-            console.error(err); showStatusMessage(err.message, true);
-        } finally {
-            confirmShareButton.disabled=false; confirmShareButton.textContent='Share';
-        }
-    });
-
-    // --- Download ---
-    async function downloadDocument(docId) {
-        var user = auth && auth.currentUser; if (!user) return;
-        var idToken = await user.getIdToken();
-        var response = await fetch('/api/documents/' + docId + '/download', { headers: { 'Authorization': 'Bearer ' + idToken } });
-        if (!response.ok) throw new Error('Server error: ' + response.statusText);
-        var blob = await response.blob();
-        var cd = response.headers.get('content-disposition');
-        var fileName = 'downloaded-file';
-        if (cd) {
-            var match = cd.match(/filename="?([^"]+)"?/);
-            if (match && match[1]) fileName = match[1];
-        }
-        var link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(link.href);
+    /* ---------- Download ---------- */
+    async function downloadDocument(id){
+        var user = auth && auth.currentUser; if(!user) return;
+        var token = await user.getIdToken();
+        var res = await fetch('/api/documents/'+id+'/download',{ headers:{ 'Authorization':'Bearer '+token }});
+        if(!res.ok) throw new Error('Server error: '+res.statusText);
+        var blob = await res.blob();
+        var cd = res.headers.get('content-disposition'); var name='downloaded-file';
+        if(cd){ var m=cd.match(/filename="?([^"]+)"?/); if(m&&m[1]) name=m[1]; }
+        var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
     }
 
-    // --- Upload ---
-    function uploadFile(file, token) {
-        var formData = new FormData(); formData.append('file', file);
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/documents/upload', true);
-        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-        xhr.upload.onprogress = function(e){ if(e.lengthComputable){ progressContainer.classList.remove('hidden'); progressBar.style.width = (e.loaded/e.total*100)+'%'; } };
-        xhr.onloadstart = function(){ uploadButton.disabled=true; uploadButton.textContent='Uploading...'; hideStatusMessage(); };
-        xhr.onload = function(){
-            resetUploadUI();
-            if (xhr.status===201){
-                showStatusMessage("'" + file.name + "' uploaded successfully!", false);
-                fetchDocuments();
-            } else {
-                showStatusMessage('Upload failed: ' + (xhr.responseText || 'Server error'), true);
-            }
+    /* ---------- Upload (XHR with progress) ---------- */
+    function openUpload(){ uploadModal.classList.remove('hidden'); uploadCard.classList.remove('hidden'); setSelectedFile(null); uploadProgress.classList.add('hidden'); }
+    function closeUpload(){ uploadModal.classList.add('hidden'); uploadCard.classList.add('hidden'); }
+    function setSelectedFile(f){ currentFile=f; selectedFileName.textContent = f?f.name:'No file selected'; confirmUploadButton.disabled = !f; }
+
+    chooseFileButton.addEventListener('click', function(){ modalFileInput.click(); });
+    modalFileInput.addEventListener('change', function(e){ setSelectedFile(e.target.files && e.target.files[0] || null); });
+    ['dragenter','dragover'].forEach(function(evt){ dropZone.addEventListener(evt,function(e){ e.preventDefault(); e.stopPropagation(); dropZone.classList.add('drop-active'); }); });
+    ['dragleave','drop'].forEach(function(evt){ dropZone.addEventListener(evt,function(e){ e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('drop-active'); }); });
+    dropZone.addEventListener('drop', function(e){ var f=e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; setSelectedFile(f||null); });
+
+    function uploadFile(file, token){
+        uploadProgress.classList.remove('hidden');
+        var formData=new FormData(); formData.append('file',file);
+        var xhr=new XMLHttpRequest();
+        xhr.open('POST','/api/documents/upload',true);
+        xhr.setRequestHeader('Authorization','Bearer '+token);
+        xhr.upload.onprogress=function(e){ if(e.lengthComputable){ var p=Math.round(e.loaded/e.total*100); uploadProgressBar.style.width=p+'%'; uploadProgressLabel.textContent=p+'%'; } };
+        xhr.onloadstart=function(){ confirmUploadButton.disabled=true; confirmUploadButton.textContent='Uploading…'; };
+        xhr.onload=function(){
+            confirmUploadButton.disabled=false; confirmUploadButton.textContent='Upload';
+            if(xhr.status===201){ closeUpload(); toast('Upload complete.', true); fetchDocuments(); }
+            else { toast('Upload failed: '+(xhr.responseText||'Server error'), false); }
         };
-        xhr.onerror = function(){ resetUploadUI(); showStatusMessage('A network error occurred during the upload.', true); };
+        xhr.onerror=function(){ confirmUploadButton.disabled=false; confirmUploadButton.textContent='Upload'; toast('Network error during upload.', false); };
         xhr.send(formData);
     }
 
-    uploadForm.addEventListener('submit', async function(e){
-        e.preventDefault();
-        if (!currentFile) { showStatusMessage('Please select a file first.', true); return; }
-        var user = auth && auth.currentUser; if (!user) { showStatusMessage('You must be logged in to upload files.', true); return; }
-        var idToken = await user.getIdToken(); uploadFile(currentFile, idToken);
+    /* ---------- Share ---------- */
+    function openShare(name,id){ currentDocToShare={ id:id, name:name }; shareModalFilename.textContent='Sharing: '+name; shareModal.classList.remove('hidden'); shareCard.classList.remove('hidden'); }
+    function closeShare(){ shareModal.classList.add('hidden'); shareCard.classList.add('hidden'); shareEmailInput.value=''; }
+
+    /* ---------- Delete ---------- */
+    function openDelete(name,id){ currentDocToDelete={ id:id, name:name }; deleteModalText.textContent='Are you sure you want to delete "'+name+'"? This action cannot be undone.'; deleteModal.classList.remove('hidden'); deleteCard.classList.remove('hidden'); }
+    function closeDelete(){ deleteModal.classList.add('hidden'); deleteCard.classList.add('hidden'); }
+
+    /* ---------- Global clicks ---------- */
+    document.addEventListener('click', async function(e){
+        var t=e.target;
+
+        // Upload modal triggers
+        if(t.id==='open-upload-modal'||t.id==='open-upload-modal-2'){ openUpload(); return; }
+        if(t.id==='cancel-upload-button'||t.id==='close-upload-x'||t===uploadModal){ closeUpload(); return; }
+        if(t.id==='confirm-upload-button'){ var user=auth&&auth.currentUser; if(!user||!currentFile){ toast('Select a file first.', false); return; } var tok=await user.getIdToken(); uploadFile(currentFile, tok); return; }
+
+        // Share modal triggers
+        if(t.id==='cancel-share-button'||t.id==='close-share-x'||t===shareModal){ closeShare(); return; }
+        if(t.id==='confirm-share-button'){ var u=auth&&auth.currentUser; if(!u||!currentDocToShare) return; var tok2=await u.getIdToken(); confirmShareButton.disabled=true; confirmShareButton.textContent='Sharing…';
+            try{
+                var res=await fetch('/api/documents/'+currentDocToShare.id+'/share',{ method:'POST', headers:{ 'Authorization':'Bearer '+tok2,'Content-Type':'application/json' }, body:JSON.stringify({ email: shareEmailInput.value }) });
+                var txt=await res.text(); var body=null; try{ body=txt?JSON.parse(txt):null; }catch(_){}
+                if(!res.ok) throw new Error((body&&body.message)||res.statusText||'Failed to share');
+                toast((body&&body.message)||'Document shared.', true); closeShare(); fetchDocuments();
+            }catch(err){ console.error(err); toast(err.message, false); }
+            finally{ confirmShareButton.disabled=false; confirmShareButton.textContent='Share'; }
+            return;
+        }
+
+        // Delete modal triggers
+        if(t.id==='cancel-delete-button'||t.id==='close-delete-x'||t===deleteModal){ closeDelete(); return; }
+        if(t.id==='confirm-delete-button'){ var u2=auth&&auth.currentUser; if(!u2||!currentDocToDelete) return; var tok3=await u2.getIdToken(); confirmDeleteButton.disabled=true; confirmDeleteButton.textContent='Deleting…';
+            try{
+                var r=await fetch('/api/documents/'+currentDocToDelete.id,{ method:'DELETE', headers:{ 'Authorization':'Bearer '+tok3 }});
+                if(!r.ok){ var m=await r.text(); throw new Error(m||'Failed to delete'); }
+                toast('Document deleted.', true); closeDelete(); fetchDocuments();
+            }catch(err){ console.error(err); toast(err.message,false); }
+            finally{ confirmDeleteButton.disabled=false; confirmDeleteButton.textContent='Delete'; }
+            return;
+        }
+
+        // Row actions via delegation
+        if(t.closest('.btn') && t.textContent==='Download'){ var id=t.closest('.btn').dataset.docId; try{ await downloadDocument(id); }catch(err){ console.error(err); toast('Download failed.',false);} return; }
+        if(t.closest('.btn') && t.textContent==='Share'){ var b=t.closest('.btn'); openShare(b.dataset.docName, b.dataset.docId); return; }
+        if(t.closest('.btn') && t.textContent==='Delete'){ var b2=t.closest('.btn'); openDelete(b2.dataset.docName, b2.dataset.docId); return; }
+
+        // Toolbar
+        if(t.id==='refresh-button'){ fetchDocuments(); return; }
     });
 
-    function handleFileSelect(file){ if (file){ currentFile=file; fileNameDisplay.textContent=currentFile.name; uploadButton.disabled=false; hideStatusMessage(); } }
-    function preventDefaults(e){ e.preventDefault(); e.stopPropagation(); var l=document.querySelector('.file-input-label'); l.addEventListener('dragenter',function(){l.classList.add('dragover');},false); l.addEventListener('dragover',function(){l.classList.add('dragover');},false); l.addEventListener('dragleave',function(){l.classList.remove('dragover');},false); l.addEventListener('drop',function(){l.classList.remove('dragover');},false); }
-    function resetUploadUI(){ uploadButton.disabled=true; uploadButton.textContent='Upload File'; progressContainer.classList.add('hidden'); progressBar.style.width='0%'; fileNameDisplay.textContent='Click to upload or drag and drop'; uploadForm.reset(); currentFile=null; }
-    function showStatusMessage(msg, isErr){ if(isErr===void 0){isErr=false;} statusMessage.textContent=msg; statusMessage.className='mt-4 p-4 rounded-md text-sm ' + (isErr ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'); }
-    function hideStatusMessage(){ statusMessage.className='mt-4 p-4 rounded-md hidden text-sm'; }
-    function formatBytes(bytes,d){ if(d===void 0){d=2;} if(!+bytes)return'0 Bytes'; var t=d<0?0:d, e=['Bytes','KB','MB','GB','TB']; var i=Math.floor(Math.log(bytes)/Math.log(1024)); var val=(bytes/Math.pow(1024,i)).toFixed(t); return parseFloat(val)+' '+e[i]; }
-
-    var fileInputLabel=document.querySelector('.file-input-label');
-    ['dragenter','dragover','dragleave','drop'].forEach(function(name){ fileInputLabel.addEventListener(name,preventDefaults,false); });
-    fileInput.addEventListener('change', function(e){ handleFileSelect(e.target.files[0]); });
-    fileInputLabel.addEventListener('drop', function(e){ handleFileSelect(e.dataTransfer.files[0]); });
+    // ESC closes modals
+    document.addEventListener('keydown', function(e){
+        if(e.key==='Escape'){ closeUpload(); closeShare(); closeDelete(); }
+    });
 </script>
 </body>
 </html>

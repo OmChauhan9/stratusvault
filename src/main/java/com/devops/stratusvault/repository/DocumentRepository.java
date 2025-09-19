@@ -21,7 +21,7 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
                 AND su.firebaseUid = :firebaseUid
          )
       """)
-    List<Document> findDocumentsVisibleTo(@Param("firebaseUid") String firebaseUid);
+    List<Document> findDocumentsOwnedByOrSharedWithUser(@Param("firebaseUid") String firebaseUid);
 
 //        List<Document> findDocumentsVisibleTo(String firebaseUid);
 }
